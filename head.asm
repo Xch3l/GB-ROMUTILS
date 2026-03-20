@@ -146,8 +146,7 @@ SGBFLAG:
 
 .org $0147 ; Cartridge board type
 BOARDTYPE:
-	.db BOARD_MBC3_RTC
-	;.db BOARD_ROM_SRAM
+	.db BOARD_MBC5_SRAM
 
 .org $0148 ; ROM size
 ROMSIZE:
@@ -155,7 +154,7 @@ ROMSIZE:
 
 .org $0149 ; RAM size
 RAMSIZE:
-	.db RAM_64KB
+	.db RAM_32KB
 
 .org $014A ; Region code
 REGION:

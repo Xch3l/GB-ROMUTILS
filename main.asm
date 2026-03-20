@@ -15,6 +15,23 @@
 	ld (HL), >PTR
 .ENDM
 
+.MACRO SetIFLAGS
+	in rIE
+	push AF
+
+	.IF NARGS == 1
+		out rIE, \1
+	.ENDIF
+
+	out rIF, 0 ; clear pending
+.ENDM
+
+.MACRO RestoreIFLAGS
+	pop AF
+	out rIE
+	out rIF, 0 ; clear pending
+.ENDM
+
 .INCLUDE "head.asm"
 
 .DEFINE BC $10000
@@ -104,7 +121,13 @@ ScreenOff:
 	ret Z
 
 	and $7F
-	sleep
+	ld B, A
+-	sleep
+	in rIF
+	bit _IF_VBLANK, A
+	jr Z, -
+
+	ld A, B
 	out rLCDC
 	ret
 
@@ -638,10 +661,7 @@ MenuHighlight:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Popup stuff (uses Window)
 InitPopup:
-	in rIE
-	push AF
-	out rIE, IF_VBLANK
-	out rIF, $00
+	SetIFLAGS IF_VBLANK
 	ld HL, BG1 ; set BG pointer, counter and tile before
 	ld B, 32   ; sleeping to gain some cycles
 	ld A, DIVIDER_TILE
@@ -706,16 +726,12 @@ InitPopup:
 	out rWY, $78
 
 	; Recover isource
-	out rIF, $00
-	pop AF
-	out rIE
+	RestoreIFLAGS
 	ret
 
 ClosePopup:
 	; Change isource
-	in rIE
-	push AF
-	out rIE, IF_VBLANK ; vblank only
+	SetIFLAGS IF_VBLANK ; vblank only
 
 	; Slide down
 	ld B, 1
@@ -729,9 +745,7 @@ ClosePopup:
 	jr C, -
 
 	; Restore isource
-	out rIF, $00
-	pop AF
-	out rIE
+	RestoreIFLAGS
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

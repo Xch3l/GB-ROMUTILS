@@ -6,10 +6,22 @@ scrAbout:
 	text "ROMUTILS v2"
 	text ""
 	text "Assembled"
-	text " on ",_DATE_
-	text " at ",_TIME_
+
+	.db " on"
+	.REPT 15-_DATE_.length
+		.db " "
+	.ENDR
+	text _DATE_
+
+	.db " at"
+	.REPT 15-_TIME_.length
+		.db " "
+	.ENDR
+	text _TIME_
 
 About_Init:
+	SetIFLAGS IF_VBLANK
+
 	ldp HL, scrAbout
 	ld DE, BG0
 	gosub InitScreen
@@ -21,10 +33,12 @@ About_Init:
 
 About_Loop:
 	sleep
+	out rIF, 0
 	gosub ReadInput
 	and JP_A|JP_B
 	jr Z, About_Loop
 
+	RestoreIFLAGS
 	pop AF
 	pop AF
 	goto Main

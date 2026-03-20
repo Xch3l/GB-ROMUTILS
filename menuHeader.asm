@@ -209,7 +209,7 @@ hvLoop:
 	ld A, (ROMSIZE)
 	cp 9
 	jr C, +
-	ld A, 45
+	ld A, 55
 	jr ++
 
 +	ld B, $00
@@ -219,14 +219,14 @@ hvLoop:
 
 ++
 	ldp DE, ROMSIZEPTR+1
-	ldp BC, ROMSIZES@labels
+	ldp BC, SizeLabels
 	gosub hvGetLabel
 
 	ldp HL, RAMSIZES
 	ld A, (RAMSIZE)
 	cp 6
 	jr C, +
-	ld A, 5
+	ld A, 55
 	jr ++
 
 +	ld B, $00
@@ -236,7 +236,7 @@ hvLoop:
 
 ++
 	ldp DE, RAMSIZEPTR+1
-	ldp BC, RAMSIZES@labels
+	ldp BC, SizeLabels
 	gosub hvGetLabel
 
 	goto hvLoop
@@ -244,8 +244,10 @@ hvLoop:
 hvGetLabel:
 	add C
 	ld C, A
+	jr NC, +
+	inc B
 
-	ld H, D
++	ld H, D
 	ld L, E
 	ld (HL), C
 	inc HL
@@ -255,7 +257,14 @@ hvGetLabel:
 hvReturn:
 	pop HL
 	pop HL
+	pop HL
 	goto Main
+
+ROMSIZES:
+	.db 10, 15, 20, 25, 30, 35, 40, 45, 50
+
+RAMSIZES:
+	.db 00, 55, 05, 10, 20, 15
 
 ROMTYPES:
 	;    0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
@@ -305,28 +314,16 @@ ROMTYPES:
 ;; 22  MBC7          |  x  |  x   |     |  x  |   x  |
 ;; FC  Pocket Camera |  x  |  x   |     |     |      |  x
 
-ROMSIZES:
-	.db 0, 5, 10, 15, 20, 25, 30, 35, 40
-
-@labels:
-	.db " 32KB"
-	.db " 64KB"
-	.db "128KB"
-	.db "256KB"
-	.db "512KB"
-	.db "  1MB"
-	.db "  2MB"
-	.db "  4MB"
-	.db "  8MB"
-	.db "?????"
-
-RAMSIZES:
-	.db 0, 5, 10, 15, 20, 25
-
-@labels:
-	.db " none"
-	.db "<inv>"
-	.db "  8KB"
-	.db " 32KB"
-	.db "128KB"
-	.db " 64KB"
+SizeLabels:   ; offs   rom sram
+	.db " none" ; 0          00
+	.db "  8KB" ; 5          10
+	.db " 32KB" ; 10     00  15
+	.db " 64KB" ; 15     05  25
+	.db "128KB" ; 20     10  20
+	.db "256KB" ; 25     15
+	.db "512KB" ; 30     20
+	.db "  1MB" ; 35     25
+	.db "  2MB" ; 40     30
+	.db "  4MB" ; 45     35
+	.db "  8MB" ; 50     40
+	.db "<inv>" ; 55     45  05

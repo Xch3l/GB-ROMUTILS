@@ -87,9 +87,7 @@ IRRecv:
 	out $FF14, $83 ; Freq. hi
 
 	; Disable interrupts
-	in rIE
-	push AF
-	out rIE, $00
+	SetIFLAGS IF_NONE
 
 	; Set timer
 	ld DE, $0000
@@ -129,9 +127,7 @@ IRRecv:
 	out rIRP ; disable IR
 	gosub ClosePopup
 
-	out rIF, $00
-	pop AF
-	out rIE
+	RestoreIFLAGS
 	ret
 
 IRXmit:
@@ -159,10 +155,7 @@ IRXmit:
 	sleep
 	out rIRP ; disable IR
 
-	; Restore isource
-	out rIF, $00
-	pop AF
-	out rIE
+	RestoreIFLAGS
 	ret
 
 @irSend:

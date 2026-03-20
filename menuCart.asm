@@ -1,6 +1,11 @@
 .DEFINE SRAMBANKS TEMP
 .DEFINE TESTVALUE TEMP+1
 
+.DEFINE OAM_PATTERNBYTE $FE02
+.DEFINE OAM_ADDRBANK    $FE06
+.DEFINE OAM_ADDRHI      $FE0A
+.DEFINE OAM_ADDRLO      $FE0E
+
 CartOptionsMenu:
 	.db 5
 	dwp CartMenuVBL
@@ -8,14 +13,14 @@ CartOptionsMenu:
 	; labels
 	dwp strCartOptionsTitle ; title
 	dwp strViewRTC
-	dwp strTestRumble
 	dwp strTestSRAM
+	dwp strTestRumble
 	dwp strHashROM
 	dwp strReturn
 	; callbacks
 	dwp ViewRTC
+	dwp SRAMTest_Init ;TestSRAM
 	dwp TestRumble
-	dwp TestSRAM
 	dwp HashROM
 	dwp ReturnSubmenu
 
@@ -40,10 +45,7 @@ ViewRTC:
 	ldp DE, strNoRTC
 	gosub InitPopup
 
-	; Keep isources
-	in rIE
-	push AF
-	out rIE, IF_VBLANK
+	SetIFLAGS IF_VBLANK
 
 	ld D, 240 ; 5sec
 -	out rIF, $00
@@ -58,9 +60,7 @@ ViewRTC:
 	; Close message
 	gosub ClosePopup
 
-	; Restore isources
-	pop AF
-	out rIE
+	RestoreIFLAGS
 	ret
 
 TestRumble:
@@ -70,65 +70,81 @@ TestSRAM:
 	;[TODO] Warn about potential data loss
 	;[TODO] Take into account MBC2's 4bit SRAM
 
-	gosub CheckSRAM
-	out SRAMBANKS
-
 	ldp DE, strSramTesting
 	gosub InitPopup
 
 	; Unlock SRAM
-	ld A, $AA
+	ld A, SRAM_KEY
 	ld ($0000), A
 
-	gosub @run
-
-	; Lock SRAM
-	xor A
-	ld ($0000), A
-
-	ret
-
-@run:
+	; Run tests
 	ld A, $AA
 	gosub RunSRAMtest
+	jr NZ, @endtest
 	cpl   ; A = $55
 	gosub RunSRAMtest
+	jr NZ, @endtest
 	xor A ; A = $00
 	gosub RunSRAMtest
+	jr NZ, @endtest
 	dec A ; A = $FF
 	gosub RunSRAMtest
+	jr NZ, @endtest
+
+@endtest:
+	push AF
+	push BC
+	push DE
+	push HL
 
 	; Lock SRAM
 	xor A
 	ld ($0000), A
 
-	; Display success message
-	ldp DE, strSramTestSuccess
-	gosub InitPopup
+	gosub ClosePopup
 
-	; Wait to dismiss
--	sleep
-	gosub ReadInput
-	bit _JP_A, A
-	jr Z, -
-
-	goto ClosePopup
-	;gosub ClosePopup
-	;ret
+	pop HL
+	pop DE
+	pop BC
+	pop AF
+	ret
 
 RunSRAMtest:
-	out TESTVALUE ; keep value to test
-	ld B, $00 ; current bank number
+	ld D, A ; keep value to test
 	in SRAMBANKS ; get SRAM banks
-	ld C, A
+	ld B, $00 ; current bank number
+	ld C, A ; total bank count
+
+	; wait for vblank
+-	sleep
+	in rIF
+	bit _IF_VBLANK, A
+	jr Z, -
+
+	ld A, D
+	ld (OAM_PATTERNBYTE), A
 
 @nextBank: ; set SRAM bank
 	ld A, B
 	ld ($4000), A
 	ld HL, $A000
-	in TESTVALUE
 
 @nextByte:
+	in rIF ; check vblank state
+	bit _IF_VBLANK, A
+	jr Z, @testValue
+	res _IF_VBLANK, A
+	out rIF
+
+	ld A, B
+	ld (OAM_ADDRBANK), A
+	ld A, H
+	ld (OAM_ADDRHI), A
+	ld A, L
+	ld (OAM_ADDRLO), A
+
+@testValue:
+	ld A, D
 	ld (HL), A
 	cp (HL)
 	jr NZ, @error
@@ -142,69 +158,117 @@ RunSRAMtest:
 	ret
 
 @error:
-	; Keep iflags
-	in rIE
-	push AF
-	out rIE, IF_VBLANK
-	out rIF, $00
-	sleep
-
-	push HL
-
-	; Display error message
-	ldp DE, strSramTestError
-	gosub InitPopup
-
-	; Set OAMs
-	ld HL, $FE00
-	ld (HL), $90 ; y
-	inc HL
-	ld (HL), $88 ; x
-	inc HL
-	ld (HL), B ; t = last bank
-	inc HL
-	ld (HL), $00 ; a
-	inc HL
-
-	pop BC
-	ld (HL), $90 ; y
-	inc HL
-	ld (HL), $90 ; x
-	inc HL
-	ld (HL), B ; t = last addr hi
-	inc HL
-	ld (HL), $00 ; a
-	inc HL
-
-	ld (HL), $90 ; y
-	inc HL
-	ld (HL), $98 ; x
-	inc HL
-	ld (HL), C ; t = last addr lo
-	inc HL
-	ld (HL), $00 ; a
-
--	sleep
-	gosub ReadInput
-	bit _JP_A, A
-	jr Z, -
-
-	; Clear OAMs
-	gosub ClearOAMS
-
-	; Close message
-	gosub ClosePopup
-
-	; Restore iflags
-	pop AF
-	out rIE
-
-	pop HL ; also exit previous routine
+	ld C, 1 ; error state
 	ret
 
 HashROM:
 	ret
 
 strSramTesting: text "Testing",DOTS
-strSramTestError: text "Test failed at"
+strSramTestError: text "Test failed"
 strSramTestSuccess: text "Test success"
+
+;----
+; Full screen SRAM test
+SRAMTest_Init:
+	gosub CheckSRAM
+	out SRAMBANKS
+
+	;[TODO] Warn about potential data loss
+	;[TODO] Consider MBC2's 4bit SRAM
+
+	SetIFLAGS IF_VBLANK
+
+	; Setup screen
+	ldp HL, scrSRAMTest_Screen
+	ld DE, BG0
+	gosub InitScreen
+
+	; Place OAMs
+	ldp HL, oamSRAMTest
+	ld DE, $FE00
+	ld B, 16
+-	ldi A, (HL)
+	ld (DE), A
+	inc DE
+	dec B
+	jr NZ, -
+
+	; Remove placeholders
+	ld A, $20
+	ld HL, BG0+$0051
+	ldi (HL), A
+	ld (HL), A
+	ld HL, BG0+$0070
+	ldi (HL), A
+	ldi (HL), A
+	ld (HL), A
+
+	gosub ScreenOn
+	gosub TestSRAM ; run tests
+	sleep ; wait vblank
+
+	; Print result message
+	bit 0, C
+	jr Z, + ; success?
+
+	; Display error address (pattern gets set beforehand)
+	ld A, B
+	ld (OAM_ADDRBANK), A
+	ld A, H
+	ld (OAM_ADDRHI), A
+	ld A, L
+	ld (OAM_ADDRLO), A
+	ldp HL, strSramTestError
+	jr ++
+
++	; Restore placeholders
+	ld A, '-'
+	ld HL, BG0+$0051
+	ldi (HL), A
+	ld (HL), A
+	ld HL, BG0+$0070
+	ldi (HL), A
+	ldi (HL), A
+	ld (HL), A
+
+	gosub ClearOAMS
+	ldp HL, strSramTestSuccess
+
+++	; Copy string
+	ld DE, BG0+$0101
+-	ldi A, (HL)
+	and A
+	jr Z, @waitExit
+	ld (DE), A
+	inc DE
+	jr -
+
+@waitExit: ; Wait for key input
+	out rIF, 0 ; clear pending ints
+	sleep
+	gosub ReadInput
+	and JP_A|JP_B
+	jr Z, @waitExit
+
+	RestoreIFLAGS
+
+	pop AF ; destroy previous return
+	ld A, 1 ; preselect option
+	ldp DE, CartOptionsMenu ; reinit menu
+	goto InitMenu+1
+
+scrSRAMTest_Screen:
+	.db 4 ; lines
+	text "SRAM Test"
+	text ""
+	text "Pattern         --"
+	text "Addr           ---"
+	text ""
+	text ""
+
+oamSRAMTest:
+	.db $20, $98, $AA, $00 ; pattern
+	.db $28, $84, $00, $00 ; addr bank
+	.db $28, $90, $A0, $00 ; addr hi
+	.db $28, $98, $00, $00 ; addr lo

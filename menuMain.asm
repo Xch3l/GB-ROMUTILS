@@ -1,3 +1,5 @@
+.DEFINE SRAM_KEY $0A
+
 MainMenuCGB:
 	.db 7 ; options
 	dwp MainVBL
@@ -105,9 +107,7 @@ MainLoop:
 
 ; Sends two bytes over SIO (Link Port) to test connection
 @testSIO:
-	in rIE ; keep isource
-	push AF
-	out rIE, IF_SERIAL
+	SetIFLAGS IF_SERIAL
 
 	; Send sync data
 	ldp HL, @sioData
@@ -115,15 +115,11 @@ MainLoop:
 	ld C, <rSC
 
 -	ldi A, (HL)
-	out rSB
-	outi $83
-	out rIF, $00
-	sleep
+	gosub SIOWRITE
 	dec B
 	jr NZ, -
 
-	pop AF ; restore isource
-	out rIE
+	RestoreIFLAGS
 	ret
 
 @sioData: ; Data to send and sync with receiver
@@ -160,9 +156,7 @@ HoldGBA:
 	gosub ScreenOn
 
 	; Set interrupt source
-	in rIE
-	push AF
-	out rIE, IF_VBLANK
+	SetIFLAGS IF_VBLANK
 
 	ld C, <rJOYP
 	outi $10 ; enable buttons
@@ -174,9 +168,26 @@ HoldGBA:
 	out rLCDC
 
 	; Restore interrupt source
-	out rIF, $00
-	pop AF
-	out rIE
+	RestoreIFLAGS
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Transfers a byte through SIO (Link Port)
+;
+; Before calling, SIO Interrupt must be enabled or this call
+; will hang indefinitely
+SIOWRITE:
+	out rSB ; data to send
+	out rSC, $83 ; enable transfer
+
+	; Conserve power by waiting for interrupt
+	out rIF, $00 ; clear ints
+-	sleep
+	in rSC
+	rla
+	jr C, -
+
+	in rIF
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -203,11 +214,7 @@ CheckSRAM:
 	ldp DE, strInvalidSRAM
 +	pop HL ; remove return point
 	gosub InitPopup
-
-	; Replace isource
-	in rIE
-	push AF
-	out rIE, IF_VBLANK
+	SetIFLAGS IF_VBLANK
 
 	; Wait a bit
 	ld D, 240 ; 5sec
@@ -221,9 +228,7 @@ CheckSRAM:
 +	gosub ClosePopup
 
 	; Restore isource
-	out rIF, $00
-	pop AF
-	out rIE
+	RestoreIFLAGS
 	ret
 
 @sramBanks:
@@ -271,9 +276,7 @@ BackupROM:
 +	ld HL, $0000 ; ROM pointer
 	dec B ; minus home bank
 
-	in rIE
-	push AF
-	out rIE, IF_VBLANK|IF_SERIAL
+	SetIFLAGS IF_VBLANK|IF_SERIAL
 
 @nextBank:
 	ld A, D
@@ -283,18 +286,13 @@ BackupROM:
 
 @nextByte:
 	ldi A, (HL)
-	out rSB
-	out rSC, $03
-	out rSC, $83
+	gosub SIOWRITE
 
 @waitEvent:
-	out rIF, $00 ; clear ints
-	sleep
-	in rIF
-	;bit _IF_JOYPAD, A
-	;jr NZ, @end
 	bit _IF_VBLANK, A
-	jr Z, +
+	jr Z, @checkSIO
+	res _IF_VBLANK, A
+	out rIF ; clear flag
 
 	; Update progress
 	ld A, B
@@ -310,7 +308,8 @@ BackupROM:
 	or $10
 	ld (BG1+33), A
 
-+	in rSC
+@checkSIO:
+	in rSC
 	rla ; bit 7, A
 	jr C, @waitEvent
 
@@ -322,14 +321,13 @@ BackupROM:
 	dec B
 	jr NZ, @nextBank
 
-	; Wait VBlank
+	; Change message
 	ld HL, BG1+32
 	ldp DE, strComplete
 	out rIF, $00
 
-	; Change message
 	ld A, $20
-	sleep
+	sleep ; wait VBlank
 -	ldi (HL), A
 	ld A, (DE)
 	inc DE
@@ -350,12 +348,10 @@ BackupROM:
 	sleep
 	dec B
 	jr NZ, -
-	gosub ClosePopup
 
-	; restore iflags
-	out rIF, $00
-	pop AF
-	out rIE
+	; Close message and restore ints
+	gosub ClosePopup
+	RestoreIFLAGS
 	ret
 
 @progressOAMs:
@@ -364,7 +360,7 @@ BackupROM:
 	.db $90, $98, $00, $00
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;
+; Backup SRAM via SIO (Link Port)
 BackupRAM:
 	gosub CheckSRAM
 	out TEMP ; save SRAM bank count
@@ -372,11 +368,6 @@ BackupRAM:
 	; Show progress message
 	ldp DE, strDumpingSRAM
 	gosub InitPopup
-
-	; Set interrupts
-	in rIE
-	push AF
-	out rIE, IF_VBLANK|IF_SERIAL
 
 	; Wait VBlank
 -	out rIF, $00
@@ -400,85 +391,82 @@ BackupRAM:
 	ld C, A
 
 	; Enable SRAM
-	ld A, $AA
+	ld A, SRAM_KEY
 	ld ($0000), A
+
+	; Set interrupts
+	SetIFLAGS IF_VBLANK|IF_SERIAL
 
 	; Copy SRAM
 @nextBank:
-	ld A, B
+	ld A, B ; B = 0 on start
 	ld ($4000), A
 	ld HL, $A000
 
 @nextByte:
-	; Send byte
-	ld A, (HL)
-	out rSB
-	out rSC, $83
+	ldi A, (HL)
+	gosub SIOWRITE
 
--	out rIF, $00 ; clear iflags
-	sleep
-	in rIF ; check iflags
+@waitEvent:
 	bit _IF_VBLANK, A
-	jr Z, +
+	jr Z, @checkSIO
+	res _IF_VBLANK, A
+	out rIF ; clear flag
 
-	; Handle VBlank (set sprites)
-	ld A, C
+	; Handle VBlank (update progress)
+	ld A, C ; C = SRAM banks
 	dec A
 	ld ($FE02), A
 	ld A, H
 	ld ($FE06), A
 	ld A, L
 	ld ($FE0A), A
+
 	ld A, (BG1+33) ; update spinner
 	inc A
 	and $1F
 	or $10
 	ld (BG1+33), A
 
-+	; Check SIO status
+@checkSIO:
 	in rSC
-	bit 7, A
-	jr NZ, -
+	rla ; bit 7, A
+	jr C, @waitEvent
 
-	; Increase ptr
-	inc HL
 	bit 6, H ; check if at $C000
 	jr Z, @nextByte
-
 	inc B ; increase bank number
 	dec C ; decrease bank count
 	jr NZ, @nextBank
 
 	;; Send complete
 	; Disable SRAM
-	ld A, $55
+	xor A
 	ld ($0000), A
 
-	out rIF, $00
-	sleep
-
 	; Change message
-	ldp HL, strComplete
-	ld DE, BG1+33
--	ldi A, (HL)
-	and A
-	jr Z, +
-	ld (DE), A
-	inc DE
-	jr -
+	ld HL, BG1+32
+	ldp DE, strComplete
+	out rIF, $00
 
-+	; Clean the rest
 	ld A, $20
--	ld (DE), A
+	sleep ; wait VBlank
+-	ldi (HL), A
+	ld A, (DE)
 	inc DE
-	bit 6, E
+	and A
+	jr NZ, -
+
+	; Clean the rest
+	ld A, $20
+-	ldi (HL), A
+	bit 7, L
 	jr Z, -
 
 	; Clear OAMs
 	gosub ClearOAMS
 
-	; Wait some frames
-	ld B, 60
+	ld B, 60 ; delay 1 second
 -	out rIF, $00
 	sleep
 	dec B
@@ -486,9 +474,7 @@ BackupRAM:
 
 	; Close message and restore ints
 	gosub ClosePopup
-	out rIF, $00 ; return isource
-	pop AF
-	out rIE
+	RestoreIFLAGS
 
 	ret
 
