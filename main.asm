@@ -34,6 +34,7 @@
 
 .INCLUDE "head.asm"
 
+; Special defs for `ldp` macro
 .DEFINE BC $10000
 .DEFINE DE $20000
 .DEFINE HL $40000
@@ -71,15 +72,6 @@
 	.dw (\1-RAMCODE)+$C000
 .ENDM
 
-.MACRO text
-	.REPT NARGS
-		.db \1
-		.SHIFT
-	.ENDR
-
-	.db 0
-.ENDM
-
 .DEFINE MAX_LABEL_LENGTH 18
 .DEFINE MENUBAND_COLOR   $03
 .DEFINE OPTION_COLOR     $0E
@@ -93,6 +85,22 @@
 .DEFINE GBA_ICON2        $0D
 .DEFINE BOX_ICON         $0E
 .DEFINE TICK_ICON        $0F
+
+; Misc. chars mapping
+.ASCIITABLE
+	MAP "•" = FILL_TILE
+	MAP "Ø" = BOX_ICON
+	MAP "…" = DOTS
+.ENDA
+
+.MACRO text
+	.REPT NARGS
+		.asc \1
+		.SHIFT
+	.ENDR
+
+	.db 0
+.ENDM
 
 .SECTION "RAMCODE" SLOT SLOT_ROMX BANK 1
 RAMCODE:

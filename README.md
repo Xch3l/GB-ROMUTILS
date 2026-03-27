@@ -23,18 +23,33 @@ Following is a wall of text explaining the handful of options available. Press &
 
 ## **Test IR** menu (available only in GBC)
 
-In this menu you can play with the (criminally neglected) infrared feature! For now there is no defined protocol but an attempt to make it like this:
-```
- _______         ______ ______ ______ ______ ______ ______ ______ ______
-/   1   \___0___/__b7__X__b6__X__b5__X__b4__X__b3__X__b2__X__b1__X__b0__\___0___...
-| Start bits    | Data byte (MSB first)                                 | Stop bit
-```
+In this menu you can play with the (criminally neglected) infrared feature!
 
 - Receive: Plays a sound everytime the IR diode senses light.
-- Transmit: Sends the displayed value through the infrared port (protocol to be defined).
-- Timer: Sets a delay between pulses.
+- Transmit: Data to send via infrared port.
+- Timer: Timer reload value.
+- Divider: Sets Timer M-Cycle division.
 - Toggle: Toggles the state of the IR diode, leaving it ON or OFF while in this menu.
-- ~~Pulse: Sends a pulse at a frequency set by `Timer`~~
+
+For now there is no defined protocol but an attempt to make it like this:
+
+```
+      _______         ______ ______ ______ ______ ______ ______ ______ ______ _______
+...__/   1   \___0___/__b7__X__b6__X__b5__X__b4__X__b3__X__b2__X__b1__X__b0__X   1   \__...
+     | Start bits    | Data byte (MSB first)                                 | Stop bit
+```
+
+A `1` bit will look like this:
+```
+________
+        \______
+```
+
+and a `0` bit will be:
+```
+       ________
+______/
+```
 
 ## Warning
 

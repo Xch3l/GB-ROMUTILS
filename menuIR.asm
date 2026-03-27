@@ -7,23 +7,45 @@ IRMenu:
 	dwp strIRRecieve
 	dwp strIRTransmit
 	dwp strIRTimer
+	dwp strIRSpeed
 	dwp strIRToggle
-	dwp strIRPWM
 	dwp strReturn
 	;callbacks
 	dwp IRRecv
 	dwp IRXmit
 	dwp IRXmit
+	dwp IRXmit
 	dwp IRToggle
-	dwp IRPWM
 	dwp IRRetn
 
+IRData:  .db $A5
+IRDelay: .db $C0
+IRSpeed: .db TIMER_4
+
 IRVBL:
+	; Get diode state
 	in rIRP
 	rra
 	ld A, BOX_ICON
 	adc $00
-	ld (BG0+$B1), A
+	ld (BG0+$D1), A
+
+	; Display current divider
+	lda IRSpeed
+	and 3
+	add A
+	add A
+	ld B, $00
+	ld C, A
+	ldp HL, strIRDIV
+	add HL, BC
+	ld B, 3
+	ld DE, BG0+$AF
+-	ldi A, (HL)
+	ld (DE), A
+	inc DE
+	dec B
+	jr NZ, -
 	ret
 
 IRMenuLoop:
@@ -52,6 +74,9 @@ IRMenuLoop:
 	jr Z, @incDec
 	inc HL ; IRDelay
 	cp 2
+	jr Z, @incDec
+	inc HL ; IRSpeed
+	cp 3
 	ret NZ
 
 @incDec:
@@ -69,9 +94,6 @@ IRMenuLoop:
 @decValue:
 	dec (HL)
 	ret
-
-IRData:  .db $55
-IRDelay: .db $DE
 
 IRRecv:
 	ldp DE, strIRRecv
@@ -137,44 +159,63 @@ IRXmit:
 
 	; Enable timer
 	ldp HL, IRDelay
-	out rTAC, TIMER_ON|TIMER_4
+	lda IRSpeed
+	and 3
+	or TIMER_ON
+	out rTAC
 	ldd A, (HL)
 	out rTMA
 	out rIF, $00
 	out rIE, IF_TIMER
 
-	ld C, $80
-	ld B, 2 ; bits
-	gosub @irSend
-	ld C, (HL)
-	ld B, 8 ; bits
-	gosub @irSend
+	ld BC, $0280 ; start bits; B = 2 bits, C = %10000000
+	gosub IRSend
 
-	; Transmit complete
-	out rIF, $00
-	sleep
-	out rIRP ; disable IR
+	ld C, (HL) ; data byte
+	ld B, 8 ; bits
+	gosub IRSend
+
+	ld BC, $0180 ; stop bit(s)
+	gosub IRSend
 
 	RestoreIFLAGS
 	ret
 
-@irSend:
+IRSend:
 	out rIF, $00
-	sleep
+	inc A ; A = 1
 	rl C
-	rla
-	out rIRP
+	sleep
+	out rIRP ; IR=on
+	dec A
+	jr NC, @zero
+
+@one:
+	out rIF
+	sleep
+	;out rIRP ; IR=off
+	out rIF
+	sleep
+	out rIRP ; IR=off
+	jr @next
+
+@zero:
+	out rIF
+	sleep
+	out rIRP ; IR=off
+	out rIF
+	sleep
+	;out rIRP ; IR=off
+
+@next:
 	dec B
-	jr NZ, @irSend
+	jr NZ, IRSend
 	ret
 
 IRToggle:
 	in rIRP
 	xor $01
 	out rIRP
-	ret
-
-IRPWM:
 	ret
 
 IRRetn:

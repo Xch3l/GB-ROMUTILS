@@ -9,7 +9,7 @@ strMainBackupSRAM:   text "Backup SRAM"
 strMainRestoreSRAM:  text "Restore SRAM"
 strMainCartOptions:  text "Cart options"
 strMainTestIR:       text "Test IR"
-strMainAbout:        text "About",DOTS
+strMainAbout:        text "About…"
 
 ; Cart Options Menu
 strCartOptionsTitle: text "Cart options"
@@ -32,43 +32,43 @@ strIRMenuTitle:      text "IR Comms.Test"
 strIRRecieve:        text "Receive"
 strIRTransmit:       text "Transmit       < >"
 strIRTimer:          text "Timer          < >"
+strIRSpeed:          text "Divider      <   >"
 strIRToggle:         text "Toggle"
-strIRPWM:            text "Pulse"
+strIRDIV:            .db "256   4  16  64 "
 
 ; Messages                 ------------------
-strDumpingROM:       text $10,"Dumping ROM",DOTS
-strDumpingSRAM:      text $10,"Dumping SRAM",DOTS
-strRestoringSRAM:    text "Restoring SRAM",DOTS
+strDumpingROM:       text $10,"Dumping ROM…"
+strDumpingSRAM:      text $10,"Dumping SRAM…"
+strRestoringSRAM:    text "Restoring SRAM…"
 strCommsError:       text "Comms.error"
 strCommsTimeout:     text "Comms.timed out"
 strComplete:         text "Complete"
 ;strNoCart:           text "No cart inserted"
 strNoSRAM:           text "No SRAM"
 strInvalidSRAM:      text "Invalid SRAM byte"
-strIRRecv:           text "Receiving",DOTS
-strIRXmit:           text "Transmitting",DOTS
+strIRRecv:           text "Receiving…"
+strIRXmit:           text "Transmitting…"
 strNoRTC:            text "No MBC+RTC found"
+strNotAvailable:     text "Not available"
 
-; 
+; Screens
 AGBHoldScreen:
-	;   "....................------------"
-	.db "                                " ; 00
-	.db "     										                 " ; 20
-	.db "   		          		               " ; 40
-	.db "  	   								   	              " ; 60
-	.db " 	    								    	             " ; 80
-	.db " 	  	 								    	             " ; A0
-	.db " 	 											  ", BOX_ICON, " 	             " ; C0
-	.db " 	  	 								 ", BOX_ICON, "  	             " ; E0
-	.db " 	   .								    	             " ; 00
-	.db "  	  .           	              " ; 20
-	.db "   			        			               " ; 40
-	.db "      								                  " ; 60
-	.db "                                " ; 80
-	.db "                                " ; A0
-	.db "   GBA on standby               " ; C0
-	.db "                                " ; E0
-	.db "  Hold A+B to exit",0
-
-; About screen
-
+	;[TODO] Compress this thing
+	;    "....................------------"
+	.asc "                                " ; 00
+	.asc "     ••••••••••                 " ; 20
+	.asc "   ••          ••               " ; 40
+	.asc "  •   ••••••••   •              " ; 60
+	.asc " •    ••••••••    •             " ; 80
+	.asc " •  • ••••••••    •             " ; A0
+	.asc " • •••••••••••  Ø •             " ; C0
+	.asc " •  • •••••••• Ø  •             " ; E0
+	.asc " •   .••••••••    •             " ; 00
+	.asc "  •  .           •              " ; 20
+	.asc "   •••        •••               " ; 40
+	.asc "      ••••••••                  " ; 60
+	.asc "                                " ; 80
+	.asc "                                " ; A0
+	.asc "  GBA on stand by…              " ; C0
+	.asc "                                " ; E0
+	.asc "  Hold A+B to exit",0

@@ -121,7 +121,7 @@ RunSRAMtest:
 	bit _IF_VBLANK, A
 	jr Z, -
 
-	ld A, D
+	ld A, D ; show current pattern
 	ld (OAM_PATTERNBYTE), A
 
 @nextBank: ; set SRAM bank
@@ -136,11 +136,12 @@ RunSRAMtest:
 	res _IF_VBLANK, A
 	out rIF
 
-	ld A, B
+	; Update status
+	ld A, B ; current bank number
 	ld (OAM_ADDRBANK), A
-	ld A, H
+	ld A, H ; address (high)
 	ld (OAM_ADDRHI), A
-	ld A, L
+	ld A, L ; address (low)
 	ld (OAM_ADDRLO), A
 
 @testValue:
@@ -148,9 +149,18 @@ RunSRAMtest:
 	ld (HL), A
 	cp (HL)
 	jr NZ, @error
+
+	; invert pattern byte
+	cpl
+	ld D, A
+
 	inc HL
 	bit 6, H
 	jr Z, @nextByte
+
+	; invert pattern byte
+	cpl
+	ld D, A
 
 	inc B
 	dec C
@@ -164,7 +174,7 @@ RunSRAMtest:
 HashROM:
 	ret
 
-strSramTesting: text "Testing",DOTS
+strSramTesting: text "Testing…"
 strSramTestError: text "Test failed"
 strSramTestSuccess: text "Test success"
 
