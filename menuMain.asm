@@ -15,7 +15,7 @@ MainMenuCGB:
 	dwp ViewHeader
 	dwp BackupROM
 	dwp BackupRAM
-	dwp RestoreSRAM
+	dwp MenuNotAvailable; RestoreSRAM
 	dwp CartMenu
 	dwp TestIR
 	dwp About_Init
@@ -34,7 +34,7 @@ MainMenuNoCGB:
 	dwp ViewHeader
 	dwp BackupROM
 	dwp BackupRAM
-	dwp RestoreSRAM
+	dwp MenuNotAvailable; RestoreSRAM
 	dwp CartMenu
 	dwp About_Init
 
@@ -74,7 +74,7 @@ MainLoop:
 	in SYSFLAGS
 	and $03
 	cp $03
-	call Z, (CheckLogo-RAMCODE)+$C000
+	gosubz CheckLogo
 
 	ld HL, OAMTABLE
 

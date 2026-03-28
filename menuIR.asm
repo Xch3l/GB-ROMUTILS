@@ -1,9 +1,10 @@
 IRMenu:
-	.db 6
+	.db 7
 	dwp IRVBL
 	dwp IRMenuLoop
 	;labels
 	dwp strIRMenuTitle
+	dwp strIRListen
 	dwp strIRRecieve
 	dwp strIRTransmit
 	dwp strIRTimer
@@ -11,15 +12,16 @@ IRMenu:
 	dwp strIRToggle
 	dwp strReturn
 	;callbacks
-	dwp IRRecv
+	dwp IRListen
+	dwp MenuNotAvailable; IRRecv
 	dwp IRXmit
 	dwp IRXmit
 	dwp IRXmit
 	dwp IRToggle
 	dwp IRRetn
 
-IRData:  .db $A5
-IRDelay: .db $C0
+IRData:  .db $55
+IRDelay: .db $80
 IRSpeed: .db TIMER_4
 
 IRVBL:
@@ -28,7 +30,7 @@ IRVBL:
 	rra
 	ld A, BOX_ICON
 	adc $00
-	ld (BG0+$D1), A
+	ld (BG0+$F1), A
 
 	; Display current divider
 	lda IRSpeed
@@ -39,8 +41,8 @@ IRVBL:
 	ld C, A
 	ldp HL, strIRDIV
 	add HL, BC
-	ld B, 3
-	ld DE, BG0+$AF
+	ld B, 4
+	ld DE, BG0+$CE
 -	ldi A, (HL)
 	ld (DE), A
 	inc DE
@@ -52,7 +54,7 @@ IRMenuLoop:
 	; Set sprite
 	ld HL, OAMTABLE
 	lda IRData
-	ld (HL), $28 ; y
+	ld (HL), $30 ; y
 	inc HL
 	ld (HL), $90 ; x
 	inc HL
@@ -61,29 +63,36 @@ IRMenuLoop:
 	inc HL
 
 	lda IRDelay
-	ld (HL), $30 ; y
+	ld (HL), $38 ; y
 	inc HL
 	ld (HL), $90 ; x
 	inc HL
 	ldi (HL), A  ; t
 	ld (HL), $00 ; a
 
+	in JDOWN
+	ld B, A
+	in JPRESS
+	ld C, A
+	ld A, JP_LEFT|JP_RIGHT
+	ld D, 3
+	gosub InputRepeat
+
 	ldp HL, IRData
 	lda MenuIndex
-	cp 1
-	jr Z, @incDec
-	inc HL ; IRDelay
 	cp 2
 	jr Z, @incDec
-	inc HL ; IRSpeed
+	inc HL ; IRDelay
 	cp 3
+	jr Z, @incDec
+	inc HL ; IRSpeed
+	cp 4
 	ret NZ
 
 @incDec:
-	in JPRESS
-	bit _JP_LEFT, A
+	bit _JP_LEFT, C
 	jr NZ, @decValue
-	bit _JP_RIGHT, A
+	bit _JP_RIGHT, C
 	jr NZ, @incValue
 	ret
 
@@ -95,7 +104,7 @@ IRMenuLoop:
 	dec (HL)
 	ret
 
-IRRecv:
+IRListen:
 	ldp DE, strIRRecv
 	gosub InitPopup
 
@@ -168,47 +177,46 @@ IRXmit:
 	out rIF, $00
 	out rIE, IF_TIMER
 
-	ld BC, $0280 ; start bits; B = 2 bits, C = %10000000
+	ld BC, $8002 ; start bits; B = data, C = bit count
 	gosub IRSend
 
-	ld C, (HL) ; data byte
-	ld B, 8 ; bits
+	ld B, (HL)   ; data byte
+	ld C, 8      ; bit count
 	gosub IRSend
 
-	ld BC, $0180 ; stop bit(s)
+	ld BC, $8002 ; stop bit(s)
 	gosub IRSend
 
 	RestoreIFLAGS
 	ret
 
 IRSend:
-	out rIF, $00
+	out rIF, 0
 	inc A ; A = 1
-	rl C
+	rl B
 	sleep
-	out rIRP ; IR=on
-	dec A
+	out rIRP ; IR = ON
 	jr NC, @zero
 
 @one:
+	out rIF, 0
+	sleep
+
 	out rIF
 	sleep
-	;out rIRP ; IR=off
-	out rIF
-	sleep
-	out rIRP ; IR=off
+	out rIRP ; IR = OFF
 	jr @next
 
 @zero:
+	out rIF, 0
+	sleep
+	out rIRP ; IR = OFF
+
 	out rIF
 	sleep
-	out rIRP ; IR=off
-	out rIF
-	sleep
-	;out rIRP ; IR=off
 
 @next:
-	dec B
+	dec C
 	jr NZ, IRSend
 	ret
 
@@ -221,5 +229,5 @@ IRToggle:
 IRRetn:
 	out rSNDCTRL, $00 ; disable audio
 	out rTAC ; disable timer
-	out rIRP ; disable IR
+	out rIRP ; turn off IR
 	goto ReturnSubmenu

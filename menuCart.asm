@@ -20,8 +20,8 @@ CartOptionsMenu:
 	; callbacks
 	dwp ViewRTC
 	dwp SRAMTest_Init ;TestSRAM
-	dwp TestRumble
-	dwp HashROM
+	dwp MenuNotAvailable; TestRumble
+	dwp MenuNotAvailable; HashROM
 	dwp ReturnSubmenu
 
 CartMenuVBL:
@@ -47,13 +47,13 @@ ViewRTC:
 
 	SetIFLAGS IF_VBLANK
 
-	ld D, 240 ; 5sec
+	ld E, 240 ; 5sec
 -	out rIF, $00
 	sleep
 	gosub ReadInput
 	and A
 	jr NZ, +
-	dec D
+	dec E
 	jr NZ, -
 +
 

@@ -30,10 +30,10 @@ RTCMenu:
 	; callbacks
 	dwp RTCEnabled
 	dwp RTCOverflow
-	dwp RTCSeconds
-	dwp RTCMinutes
-	dwp RTCHours
-	dwp RTCDays
+	dwp NopRetn; RTCSeconds
+	dwp NopRetn; RTCMinutes
+	dwp NopRetn; RTCHours
+	dwp NopRetn; RTCDays
 	dwp ReturnSubmenu
 
 @vbl:
@@ -58,10 +58,11 @@ RTCMenu:
 	gosub RTCUnlock
 
 	; Latch RTC
+	ld HL, MBC3_LATCH
 	xor A
-	ld (MBC3_LATCH), A
+	ld (HL), A
 	inc A
-	ld (MBC3_LATCH), A
+	ld (HL), A
 
 	; Read RTC
 	ldp HL, RTCData
@@ -140,8 +141,9 @@ RTCMenu:
 	; Check RTC Halt flag
 	ldp A, RTC_Flag
 	bit _RTC_HALT, A
-	ret NZ
+	jr NZ, @setRTC
 
+@skipOptions:
 	; Skip time registers if RTC is running
 	ldp HL, MenuIndex
 	ld A, (HL)
@@ -154,9 +156,96 @@ RTCMenu:
 	jr NZ, +
 	ld (HL), $06
 	ret
-
 +	ld (HL), $00
 	ret
+
+@setRTC
+	; Get current input
+	in JDOWN
+	ld B, A
+	in JPRESS
+	ld C, A
+	ld A, JP_LEFT|JP_RIGHT
+	ld D, 4
+	gosub InputRepeat
+
+	; Get current option
+	lda MenuIndex
+	ld B, A
+	cp 6
+	ret NC
+
+	ldp HL, RTC_Second
+	sub 2
+	add L
+	ld L, A
+	jr NC, +
+	inc H
+
++	bit _JP_LEFT, C
+	jr Z, +
+	ld D, -1
+	dec (HL)
+	jr @wrapValue
++	bit _JP_RIGHT, C
+	ret Z
+	ld D, 1
+	inc (HL)
+
+@wrapValue:
+	ld A, B
+	cp 5 ; check for "Set days"
+	jr Z, @wrapDays
+	cp 4 ; check for "Set hours"
+	jr NZ, +
+	ld BC, (RTC_H<<8)+24
+	jr ++
++	ld BC, (RTC_M<<8)+60
+	cp 2 ; check for "Set seconds"
+	jr NZ, ++
+	dec B ; RTC_S
+
+++
+	ld A, (HL)
+	bit 7, A ; negative?
+	jr Z, +
+	dec C
+	ld (HL), C
+	jr @writeValue
++	cp C
+	jr C, @writeValue
+	ld (HL), 0
+
+@writeValue:
+	ld A, B
+	gosub RTCUnlock
+	ld A, (HL)
+	ld ($A000), A
+	goto RTCLock
+
+@wrapDays:
+	ld A, RTC_DL
+	gosub RTCUnlock
+
+	ldi A, (HL) ; A = lower byte of days; HL = flags
+	ld ($A000), A ; write day value
+
+	bit 7, D ; decreased value?
+	jr Z, +
+	cp $FF
+	jr Z, ++
+	goto RTCLock
++	and A
+	gotonz RTCLock
+
+++	; Toggle bit
+	ld A, RTC_DH
+	ld (MBC3_RAMBANK), A
+
+	ld A, (HL)
+	xor 1
+	ld ($A000), A
+	goto RTCLock
 
 RTCEnabled:
 	; Select DH/Flags register
@@ -180,12 +269,6 @@ RTCOverflow:
 	ld (HL), A
 
 	goto RTCLock
-
-RTCSeconds:
-RTCMinutes:
-RTCHours:
-RTCDays:
-	ret
 
 RTCUnlock:
 	ld (MBC3_RAMBANK), A ; select reg

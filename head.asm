@@ -146,7 +146,7 @@ SGBFLAG:
 
 .org $0147 ; Cartridge board type
 BOARDTYPE:
-	.db BOARD_MBC5_SRAM
+	.db BOARD_MBC3_RTC_SRAM
 
 .org $0148 ; ROM size
 ROMSIZE:
@@ -154,7 +154,7 @@ ROMSIZE:
 
 .org $0149 ; RAM size
 RAMSIZE:
-	.db RAM_32KB
+	.db RAM_64KB
 
 .org $014A ; Region code
 REGION:
@@ -413,3 +413,8 @@ Palettes:
 	.dw COLOR3, COLOR0, 0, 0
 
 ENDOF_HEAD:
+
+; Safeguard for size limit in WRAM
+.bank 1
+.org $1E00
+	.dsb 256, $55

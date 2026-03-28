@@ -1,9 +1,57 @@
-.MACRO gosub
-	call (\1-RAMCODE)+$C000
+.MACRO dwp
+	.dw (\1-RAMCODE)+$C000
 .ENDM
 
-.MACRO goto
-	jp (\1-RAMCODE)+$C000
+; Macros to call code in WRAM
+.MACRO gosub ; call n
+	.db $CD
+	dwp \1
+.ENDM
+
+.MACRO gosubz ; call Z, n
+	.db $CC
+	dwp \1
+.ENDM
+
+.MACRO gosubc ; call C, n
+	.db $DC
+	dwp \1
+.ENDM
+
+.MACRO gosubnz ; call NZ, n
+	.db $C4
+	dwp \1
+.ENDM
+
+.MACRO gosubnc ; call NC, n
+	.db $D4
+	dwp \1
+.ENDM
+
+; Macros to jump to code in WRAM
+.MACRO goto ; jp n
+	.db $C3
+	dwp \1
+.ENDM
+
+.MACRO gotoz ; jp Z, nn
+	.db $CA
+	dwp \1
+.ENDM
+
+.MACRO gotoc ; jp C, nn
+	.db $DA
+	dwp \1
+.ENDM
+
+.MACRO gotonz ; jp NZ, nn
+	.db $C2
+	dwp \1
+.ENDM
+
+.MACRO gotonc ; jp NC, nn
+	.db $D2
+	dwp \1
 .ENDM
 
 .MACRO SetInt
@@ -60,16 +108,12 @@
 
 .MACRO lda
 	.db $FA ; ld A, (nnnn)
-	.dw (\1-RAMCODE)+$C000
+	dwp \1
 .ENDM
 
 .MACRO sta
 	.db $EA ; ld (nnnn), A
-	.dw (\1-RAMCODE)+$C000
-.ENDM
-
-.MACRO dwp
-	.dw (\1-RAMCODE)+$C000
+	dwp \1
 .ENDM
 
 .DEFINE MAX_LABEL_LENGTH 18
@@ -154,7 +198,7 @@ WaitInt:
 	sleep
 	in rIF
 	bit _IF_VBLANK, A
-	call NZ, (VSync-RAMCODE)+$C000
+	gosubnz VSync
 
 	in rIF
 	bit _IF_STAT, A
@@ -238,14 +282,38 @@ ReadInput:
 	cpl          ; invert
 	out JDOWN    ; save it
 
-	ld B, A
+	ld B, A      ; B = current read
 	ld A, C
 	xor B
 	and B
-	ld C, A
+	ld C, A      ; C = new buttons
 	out JPRESS
 
+	ld D, 4 ; sensible retrigger default
 	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.DEFINE REPEAT_DELAY     15 ; ~1/4 second
+
+; Repeats inputs according to a bitmask in A, with a delay set
+; in D
+InputRepeat:
+	ldp HL, @repeat
+	and B
+	jr NZ, +
+	ld (HL), REPEAT_DELAY
+	ret
+
++	dec (HL)
+	ret NZ
+
+	ld (HL), D
+	ld A, B
+	ld C, A
+	out JPRESS
+	ret
+
+@repeat: .db REPEAT_DELAY
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 PutHex:
@@ -806,6 +874,27 @@ InitScreen:
 	bit 2, D
 	jr Z, -
 
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Routine to display a "Not available" message
+MenuNotAvailable:
+	ldp DE, strNotAvailable
+	gosub InitPopup
+
+	SetIFLAGS IF_VBLANK
+
+	ld E, 240 ; 5sec
+-	out rIF, 0
+	sleep
+	gosub ReadInput
+	and A
+	jr NZ, +
+	dec E
+	jr NZ, -
+
++	gosub ClosePopup
+	RestoreIFLAGS
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

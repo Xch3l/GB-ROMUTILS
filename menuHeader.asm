@@ -118,14 +118,14 @@ hvLoop:
 	in SYSFLAGS
 	and $03
 	cp $03
-	call Z, (CheckLogo-RAMCODE)+$C000
+	gosubz CheckLogo
 
 	; do the stuff
 	gosub WaitInt
 	gosub ReadInput
 
 	and JP_A|JP_B ;bit _JP_B, C ; return if B was pressed
-	jp NZ, (hvReturn-RAMCODE)+$C000
+	gotonz hvReturn
 
 	in SYSFLAGS
 	and $03

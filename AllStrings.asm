@@ -29,12 +29,13 @@ strRTCDays:          text "Set days"
 
 ; IR Menu
 strIRMenuTitle:      text "IR Comms.Test"
+strIRListen:         text "Listen"
 strIRRecieve:        text "Receive"
 strIRTransmit:       text "Transmit       < >"
 strIRTimer:          text "Timer          < >"
-strIRSpeed:          text "Divider      <   >"
+strIRSpeed:          text "Divider          >"
 strIRToggle:         text "Toggle"
-strIRDIV:            .db "256   4  16  64 "
+strIRDIV:            .db "<256  <4 <16 <64"
 
 ; Messages                 ------------------
 strDumpingROM:       text $10,"Dumping ROM…"

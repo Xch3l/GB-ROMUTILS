@@ -25,7 +25,8 @@ Following is a wall of text explaining the handful of options available. Press &
 
 In this menu you can play with the (criminally neglected) infrared feature!
 
-- Receive: Plays a sound everytime the IR diode senses light.
+- Listen: Plays a sound everytime the IR diode senses light.
+- ~~Receive: Receives a data byte.~~
 - Transmit: Data to send via infrared port.
 - Timer: Timer reload value.
 - Divider: Sets Timer M-Cycle division.
