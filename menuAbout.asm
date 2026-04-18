@@ -32,8 +32,13 @@ About_Init:
 	gosub ScreenOn
 
 About_Loop:
-	sleep
 	out rIF, 0
+	in FRAMENUM
+	inc A
+	sleep
+	out FRAMENUM
+	gosub AnimateIdleIcon ; update "idle activity" icon
+
 	gosub ReadInput
 	and JP_A|JP_B
 	jr Z, About_Loop

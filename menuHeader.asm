@@ -255,6 +255,12 @@ hvGetLabel:
 	ret
 
 hvReturn:
+	out rIF, $00 ; clear ints
+	sleep ; wait VBlank
+	in rIF
+	bit _IF_VBLANK, A
+	jr Z, hvReturn
+
 	pop HL
 	pop HL
 	pop HL

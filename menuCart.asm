@@ -19,8 +19,8 @@ CartOptionsMenu:
 	dwp strReturn
 	; callbacks
 	dwp ViewRTC
-	dwp SRAMTest_Init ;TestSRAM
-	dwp MenuNotAvailable; TestRumble
+	dwp SRAMTest_Init ; TestSRAM
+	dwp TestRumble
 	dwp MenuNotAvailable; HashROM
 	dwp ReturnSubmenu
 
@@ -64,11 +64,13 @@ ViewRTC:
 	ret
 
 TestRumble:
-	ret
+	;[TODO] Check for applicable board type
+	ldp DE, RumbleMenu
+	goto InitSubmenu
 
 TestSRAM:
-	;[TODO] Warn about potential data loss
 	;[TODO] Take into account MBC2's 4bit SRAM
+	;[TODO] ...and MBC7's serial EEPROM
 
 	ldp DE, strSramTesting
 	gosub InitPopup
@@ -185,7 +187,6 @@ SRAMTest_Init:
 	out SRAMBANKS
 
 	;[TODO] Warn about potential data loss
-	;[TODO] Consider MBC2's 4bit SRAM
 
 	SetIFLAGS IF_VBLANK
 
@@ -268,6 +269,7 @@ SRAMTest_Init:
 	ldp DE, CartOptionsMenu ; reinit menu
 	goto InitMenu+1
 
+;[TODO] Move this to AllStrings
 scrSRAMTest_Screen:
 	.db 4 ; lines
 	text "SRAM Test"

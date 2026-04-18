@@ -37,6 +37,11 @@ strIRSpeed:          text "Divider          >"
 strIRToggle:         text "Toggle"
 strIRDIV:            .db "<256  <4 <16 <64"
 
+; Rumble Menu
+strRumbleTitle:      text "Rumble"
+strRumStrength:      text "Strength"
+strRumDuration:      text "Duration"
+
 ; Messages                 ------------------
 strDumpingROM:       text $10,"Dumping ROM…"
 strDumpingSRAM:      text $10,"Dumping SRAM…"

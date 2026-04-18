@@ -11,5 +11,6 @@
 # old builds created by batch files
 old/
 
-# misc batch files
+# misc files
 \!*.bat
+*.diff

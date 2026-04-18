@@ -1,3 +1,5 @@
+.DEFINE NOISE_TICK 62
+
 .DEFINE RTC_DH $0C
 .DEFINE RTC_DL $0B
 .DEFINE RTC_H  $0A
@@ -18,8 +20,8 @@ RTCMenu:
 	.db 7
 	dwp @vbl
 	dwp @loop
-	; labels
 	dwp strRTCTitle
+	; labels
 	dwp strRTCEnabled
 	dwp strRTCOverflow
 	dwp strRTCSeconds
@@ -34,7 +36,10 @@ RTCMenu:
 	dwp NopRetn; RTCMinutes
 	dwp NopRetn; RTCHours
 	dwp NopRetn; RTCDays
-	dwp ReturnSubmenu
+	dwp RTCReturn
+
+@initFlag:
+	.db 0
 
 @vbl:
 	ldp HL, RTCBuf
@@ -55,7 +60,22 @@ RTCMenu:
 	ret
 
 @loop:
-	gosub RTCUnlock
+	ldp HL, @initFlag
+	ld A, (HL)
+	and A
+	jr NZ, +
+	inc (HL) ; init'd
+
+	; Enable audio
+	out rSNDCTRL, $80
+	out rSNDOUT, NOISE
+	out rMVOL, $77
+	out $FF20, NOISE_TICK
+	out $FF21, $80
+	out $FF22, $00
+	out $FF23, $40
+
++	gosub RTCUnlock
 
 	; Latch RTC
 	ld HL, MBC3_LATCH
@@ -77,6 +97,21 @@ RTCMenu:
 	jr NZ, -
 
 	gosub RTCLock
+
+	; Play "tick" noises
+	ldp HL, RTCTemp
+	ldp A, RTC_Second
+	cp (HL)
+	jr Z, ++
+	ld (HL), A
+	and A
+	ld A, $80
+	jr NZ, +
+	ld A, $C0
++	out $FF21
+	out $FF20, NOISE_TICK
+	out $FF23, $C0
+++
 
 	; Convert days count
 	ldp HL, RTC_Flag
@@ -247,6 +282,13 @@ RTCMenu:
 	ld ($A000), A
 	goto RTCLock
 
+RTCReturn:
+	xor A
+	sta RTCMenu@initFlag ; reset init flag
+	out rSNDCTRL ; disable audio
+
+	goto ReturnSubmenu
+
 RTCEnabled:
 	; Select DH/Flags register
 	ld A, RTC_DH
@@ -296,3 +338,5 @@ RTCBuf:
 	RTCBuf_minutes: .db "--:"
 	RTCBuf_seconds: .db "--"
 	RTCBuf_flags:   .db "??" ; status
+
+RTCTemp: .db 0

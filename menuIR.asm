@@ -174,8 +174,9 @@ IRXmit:
 	out rTAC
 	ldd A, (HL)
 	out rTMA
-	out rIF, $00
 	out rIE, IF_TIMER
+	out rIF, $00
+	sleep ; sync with timer
 
 	ld BC, $8002 ; start bits; B = data, C = bit count
 	gosub IRSend

@@ -94,8 +94,6 @@
 		.PRINT WLA_FILENAME
 		.PRINT "\n"
 		.FAIL
-	;.printv WLA_FILENAME
-	;.print "\n"
 	.ENDIF
 
 	.IF \1 == A
@@ -151,6 +149,7 @@ RAMCODE:
 
 Main:
 	out rLCDC, LCDC_WIN9C|LCDC_OBJ|LCDC_BG
+	out rSC, SC_START ; set as slave (and ready for data)
 
 	in SYSFLAGS
 	cp SF_CGB
@@ -164,8 +163,6 @@ Main:
 	ldp DE, MainMenuCGB
 	gosub InitMenu
 	jr Main
-
-	ret
 
 ScreenOff:
 	in rLCDC
@@ -565,7 +562,7 @@ InitMenu:
 	inc HL
 	ld (HL), D
 
-	out rBGP, $00
+	out rBGP, $E4
 	out rOBP0
 	out rOBP1
 
@@ -905,11 +902,28 @@ MenuNotAvailable:
 .include "menuRTC.asm"
 .include "menuIR.asm"
 .include "menuAbout.asm"
+.include "menuRumble.asm"
 .include "AllStrings.asm"
 
 IdleTile:
 	.db 3, 3, 3, 3, 0, 0, 0, 0
 	.db 3, 3, 3, 3, 0, 0, 0
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Reserve space for two dynamic menus
+DynMenu1:
+	.db 0 ; options
+	.dw 0, 0 ; vblank and loop hooks
+	.dw 0 ; title
+	.dsw 15, 0 ; labels
+	.dsw 15, 0 ; callbacks
+
+DynMenu2:
+	.db 0 ; options
+	.dw 0, 0 ; vblank and loop hooks
+	.dw 0 ; title
+	.dsw 15, 0 ; labels
+	.dsw 15, 0 ; callbacks
 
 RAMCODE_END:
 .ENDS

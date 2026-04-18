@@ -146,7 +146,7 @@ SGBFLAG:
 
 .org $0147 ; Cartridge board type
 BOARDTYPE:
-	.db BOARD_MBC3_RTC_SRAM
+	.db BOARD_MBC5_RUMB_SRAM
 
 .org $0148 ; ROM size
 ROMSIZE:

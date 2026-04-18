@@ -1,5 +1,15 @@
 .DEFINE SRAM_KEY $0A
 
+; SIO Commands
+.DEFINE CMD_START   $55 ; Start flag/acknowledge
+.DEFINE CMD_ROMDUMP $A0 ; Init ROM dump
+.DEFINE CMD_RAMDUMP $A1 ; Init SRAM dump
+.DEFINE CMD_PEEK    $A2 ; Get value in CPU address space
+.DEFINE CMD_POKE    $A3 ; Set value in CPU address space
+.DEFINE CMD_TEST    $AA ; Test connection
+.DEFINE CMD_BAD     $AF ; Bad command/error
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 MainMenuCGB:
 	.db 7 ; options
 	dwp MainVBL
@@ -97,33 +107,38 @@ MainLoop:
 	ldi (HL), A  ; t
 	ld (HL), $00 ; a
 
-	; Test comms
+	; Test comms when Select is pressed
 	in JPRESS
 	bit _JP_SELECT, A
 	jr NZ, @testSIO
 	bit _JP_START, A
 	jr NZ, HoldGBA
+
+	; Check if there's a pending transfer
+	in rSC
+	bit _SC_START, A
+	gotoz SIOCheck
 	ret
 
-; Sends two bytes over SIO (Link Port) to test connection
+; Sends four bytes over SIO (Link Port) to test connection
 @testSIO:
-	SetIFLAGS IF_SERIAL
+	SetIFLAGS IF_VBLANK|IF_SERIAL
 
 	; Send sync data
 	ldp HL, @sioData
 	ld B, 4
-	ld C, <rSC
 
 -	ldi A, (HL)
 	gosub SIOWRITE
 	dec B
 	jr NZ, -
 
+	out rSC, SC_START ; reset to slave mode (and wait for data)
 	RestoreIFLAGS
 	ret
 
 @sioData: ; Data to send and sync with receiver
-	.db $55, $AA, "OK"
+	.db CMD_START, CMD_TEST, "OK"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; AGB Hold - Standby routine for GameBoy Advance.
@@ -174,18 +189,23 @@ HoldGBA:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Transfers a byte through SIO (Link Port)
 ;
-; Before calling, SIO Interrupt must be enabled or this call
+; Before calling, any interrupt must be enabled or this call
 ; will hang indefinitely
 SIOWRITE:
 	out rSB ; data to send
-	out rSC, $83 ; enable transfer
+	out rSC, SC_START|SC_FAST|SC_MASTER ; enable transfer
 
 	; Conserve power by waiting for interrupt
-	out rIF, $00 ; clear ints
--	sleep
-	in rSC
-	rla
-	jr C, -
+-	out rIF, $00 ; clear ints
+	sleep
+	in rIE
+	bit _IF_SERIAL, A
+	jr Z, -
+
+	; Give some time between transfers
+	ld A, 131 ; ~500us on DMG (half on GBC/GBA)
+-	dec A
+	jr NZ, -
 
 	in rIF
 	ret
@@ -240,6 +260,20 @@ ViewHeader:
 	goto HeaderView
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+InitOAMs:
+	ld B, (HL) ; get count
+	inc HL
+
+	ld DE, $FE00
+-	ldi A, (HL)
+	ld (DE), A
+	inc DE
+	dec B
+	jr NZ, -
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Backup ROM via SIO (Link port)
 BackupROM:
 	ldp DE, strDumpingROM
@@ -253,14 +287,8 @@ BackupROM:
 	jr Z, -
 
 	; Setup sprites
-	ld HL, $FE00
-	ldp DE, @progressOAMs
-	ld B, 12
--	ld A, (DE)
-	ldi (HL), A
-	inc DE
-	dec B
-	jr NZ, -
+	ldp HL, @progressOAMs
+	gosub InitOAMs
 
 	; Get ROM banks
 	ld A, (ROMSIZE)
@@ -302,8 +330,11 @@ BackupROM:
 	ld A, L
 	ld ($FE0A), A
 
-	ld A, (BG1+33) ; update spinner
+	; Update spinner
+	in FRAMENUM
 	inc A
+	out FRAMENUM
+	swap A
 	and $1F
 	or $10
 	ld (BG1+33), A
@@ -352,9 +383,11 @@ BackupROM:
 	; Close message and restore ints
 	gosub ClosePopup
 	RestoreIFLAGS
+	out rSC, SC_START ; reset to slave mode (and wait for data)
 	ret
 
 @progressOAMs:
+	.db 12
 	.db $90, $84, $80, $00
 	.db $90, $90, $00, $00
 	.db $90, $98, $00, $00
@@ -376,15 +409,9 @@ BackupRAM:
 	bit _IF_VBLANK, A
 	jr Z, -
 
-	; Set OAMs
+	; Setup sprites
 	ldp HL, @progressOAMs
-	ld DE, $FE00
-	ld B, 12
--	ldi A, (HL)
-	ld (DE), A
-	inc DE
-	dec B
-	jr NZ, -
+	gosub InitOAMs
 
 	; Get SRAM length
 	in TEMP
@@ -422,8 +449,11 @@ BackupRAM:
 	ld A, L
 	ld ($FE0A), A
 
-	ld A, (BG1+33) ; update spinner
+	; Update spinner
+	in FRAMENUM
 	inc A
+	out FRAMENUM
+	swap A
 	and $1F
 	or $10
 	ld (BG1+33), A
@@ -473,12 +503,14 @@ BackupRAM:
 	jr NZ, -
 
 	; Close message and restore ints
+	out rSC, SC_START ; reset to slave mode (and wait for data)
 	gosub ClosePopup
 	RestoreIFLAGS
 
 	ret
 
 @progressOAMs:
+	.db 12
 	.db $90, $84, $80, $00
 	.db $90, $90, $00, $00
 	.db $90, $98, $00, $00
@@ -492,6 +524,7 @@ RestoreSRAM:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Cart utilities
 CartMenu:
+	;[TODO] Check current cart and fill a dynamic menu
 	ldp DE, CartOptionsMenu
 	goto InitSubmenu
 
@@ -500,3 +533,70 @@ CartMenu:
 TestIR:
 	ldp DE, IRMenu
 	goto InitSubmenu
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; -
+SIOGet:
+	out rSC, SC_START
+-	in rSC
+	bit _SC_START, A
+	jr NZ, -
+	in rSB
+	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; SIO Handler
+SIOCheck:
+	; Check start flag
+	in rSB
+	cp CMD_START
+	jr NZ, @exit
+
+	; Prepare return point
+	ldp HL, @exit
+	push HL
+
+	; Got start flag, wait for next byte
+	gosub SIOGet
+
+	; Check second command
+	cp CMD_RAMDUMP
+	jr NZ, +
+	goto @doCopyRAM
++	cp CMD_PEEK
+	jr NZ, +
+	goto @doPeek
++	cp CMD_POKE
+	jr NZ, +
+	goto @doPoke
++	out rSB, CMD_BAD
+	ret
+
+@docmd:
+	gosub CallPtr
+
+@exit:
+	out rSC, SC_START ; wait for new data
+	ret
+
+@doCopyRAM:
+	ret
+
+@doPeek:
+	gosub SIOGet ; get addr lo
+	ld L, A
+	gosub SIOGet ; get addr hi
+	ld H, A
+	ld A, (HL)
+	out rSB
+	ret
+
+@doPoke:
+	gosub SIOGet ; get addr lo
+	ld L, A
+	gosub SIOGet ; get addr hi
+	ld H, A
+	gosub SIOGet ; get data
+	ld (HL), A
+
+	ret
