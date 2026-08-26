@@ -27,9 +27,8 @@ IRSpeed: .db TIMER_4
 IRVBL:
 	; Get diode state
 	in rIRP
-	rra
-	ld A, BOX_ICON
-	adc $00
+	and $01
+	add BOX_ICON
 	ld (BG0+$F1), A
 
 	; Display current divider
@@ -108,6 +107,8 @@ IRListen:
 	ldp DE, strIRRecv
 	gosub InitPopup
 
+	SetStatus IR_TILE
+
 	; Enable audio
 	out rSNDCTRL, $80
 	out rSNDOUT, TONE1
@@ -165,6 +166,8 @@ IRXmit:
 	; Backup isource
 	in rIE
 	push AF
+
+	SetStatus IR_TILE
 
 	; Enable timer
 	ldp HL, IRDelay

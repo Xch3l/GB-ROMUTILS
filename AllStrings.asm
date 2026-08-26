@@ -39,8 +39,8 @@ strIRDIV:            .db "<256  <4 <16 <64"
 
 ; Rumble Menu
 strRumbleTitle:      text "Rumble"
-strRumStrength:      text "Strength"
-strRumDuration:      text "Duration"
+strRumStrength:      text "Strength     <   >"
+strRumDuration:      text "Duration     <   >"
 
 ; Messages                 ------------------
 strDumpingROM:       text $10,"Dumping ROM…"
@@ -56,6 +56,9 @@ strIRRecv:           text "Receiving…"
 strIRXmit:           text "Transmitting…"
 strNoRTC:            text "No MBC+RTC found"
 strNotAvailable:     text "Not available"
+strTesting:          text "Testing…"
+strTestError:        text "Test failed!"
+strTestSuccess:      text "Test success"
 
 ; Screens
 AGBHoldScreen:

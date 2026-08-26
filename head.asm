@@ -44,7 +44,7 @@
 .DEFINE BOARD_MBC5_RUMB_RAM  $1D ; 8MB     ; 128KB   ; 
 .DEFINE BOARD_MBC5_RUMB_SRAM $1E ; 8MB     ; 128KB   ; 
 .DEFINE BOARD_MBC6           $20 ;         ; 32KB    ; implies SRAM; used in 1 game
-.DEFINE BOARD_MBC7           $22 ;         ; 256b    ; imples Accelerometer, Rumble and Serial EEPROM
+.DEFINE BOARD_MBC7           $22 ;         ; 256b    ; implies Accelerometer, Rumble and Serial EEPROM
 .DEFINE BOARD_POCKETCAM      $FC ;         ;         ; 
 .DEFINE BOARD_TAMA5          $FD ;         ;         ; 
 .DEFINE BOARD_HuC3           $FE ;         ; 32KB    ; implies RTC, IR and SRAM
@@ -178,6 +178,7 @@ CHECKSUM:
 	JDOWN    db
 	JPRESS   db
 	TEMP     dsb 8
+	TEXTBUF  dsb 16
 .ENDS
 
 .DEFINE SF_VBLANK   7
@@ -311,6 +312,7 @@ Start:
 
 	out rKEY1, 1
 	suspend
+
 ;;	; Clear VRAM
 ;;	ld HL, BG0
 ;;	ld A, $20

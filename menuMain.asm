@@ -52,14 +52,16 @@ MainVBL:
 	in SYSFLAGS
 	and $03
 	cp $03
-	jr NZ, +
+	jr NZ, @noGBA
 
+	; place GBA icon
 	ld HL, BG0+$11
 	ld A, GBA_ICON1
 	ldi (HL), A
 	inc A
 	ldi (HL), A
 
+@noGBA:
 +	; Display ROM title
 	ld HL, ROMTITLE
 	ld DE, BG0+$0201
@@ -81,6 +83,8 @@ MainVBL:
 
 MainLoop:
 	; Check if running on a GBA
+	;[TODO] Move this to startup. No need to check for sudden machine transformations
+	;; Perhaps patch this from there?
 	in SYSFLAGS
 	and $03
 	cp $03
@@ -123,6 +127,10 @@ MainLoop:
 ; Sends four bytes over SIO (Link Port) to test connection
 @testSIO:
 	SetIFLAGS IF_VBLANK|IF_SERIAL
+
+	; Wait VBlank
+	sleep
+	SetStatus LINK_TILE
 
 	; Send sync data
 	ldp HL, @sioData
@@ -253,11 +261,20 @@ CheckSRAM:
 
 @sramBanks:
 	.db 0, 0, 1, 4, 16, 8
+	; values referenced from Pandocs
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Menu callbacks
-ViewHeader:
-	goto HeaderView
+; Updates spinner in notification
+SpinUp:
+	in FRAMENUM
+	inc A
+	out FRAMENUM
+	rra
+	rra
+	and $1F
+	or $10
+	ld (BG1+33), A
+	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -272,6 +289,11 @@ InitOAMs:
 	dec B
 	jr NZ, -
 	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Menu callbacks
+ViewHeader:
+	goto HeaderView
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Backup ROM via SIO (Link port)
@@ -290,6 +312,9 @@ BackupROM:
 	ldp HL, @progressOAMs
 	gosub InitOAMs
 
+	; Set status icon
+	SetStatus LINK_TILE
+
 	; Get ROM banks
 	ld A, (ROMSIZE)
 	ld B, $02
@@ -301,14 +326,19 @@ BackupROM:
 	dec A
 	jr NZ, -
 
-+	ld HL, $0000 ; ROM pointer
-	dec B ; minus home bank
++	ld DE, $0001 ; set starting bank
+	ld HL, $0000 ; ROM pointer
+	dec B ; decrease total bank count
 
+	; Set interrupts
 	SetIFLAGS IF_VBLANK|IF_SERIAL
+
+	; Set input for reading buttons
+	out rJOYP, $10
 
 @nextBank:
 	ld A, D
-	ld ($3000), A ; bank hi
+	ld ($3000), A ; bank hi (MBC5/MBC6)
 	ld A, E
 	ld ($2000), A ; bank lo
 
@@ -331,13 +361,12 @@ BackupROM:
 	ld ($FE0A), A
 
 	; Update spinner
-	in FRAMENUM
-	inc A
-	out FRAMENUM
-	swap A
-	and $1F
-	or $10
-	ld (BG1+33), A
+	gosub SpinUp
+
+	; Check for A+B to cancel operation
+	in rJOYP
+	cp $DC ; A+B pressed
+	jr Z, @end
 
 @checkSIO:
 	in rSC
@@ -352,13 +381,19 @@ BackupROM:
 	dec B
 	jr NZ, @nextBank
 
+@end:
+	;; Send complete
+	out rJOYP, $FF ; disable buttons
+	out rIE, IF_VBLANK
+	sleep ; wait VBlank
+	SetStatus BLANK_TILE ; clear status icon
+
 	; Change message
 	ld HL, BG1+32
 	ldp DE, strComplete
 	out rIF, $00
 
 	ld A, $20
-	sleep ; wait VBlank
 -	ldi (HL), A
 	ld A, (DE)
 	inc DE
@@ -413,6 +448,9 @@ BackupRAM:
 	ldp HL, @progressOAMs
 	gosub InitOAMs
 
+	; Set status icon
+	SetStatus LINK_TILE
+
 	; Get SRAM length
 	in TEMP
 	ld C, A
@@ -423,6 +461,9 @@ BackupRAM:
 
 	; Set interrupts
 	SetIFLAGS IF_VBLANK|IF_SERIAL
+
+	; Set input for reading buttons
+	out rJOYP, $10
 
 	; Copy SRAM
 @nextBank:
@@ -450,13 +491,12 @@ BackupRAM:
 	ld ($FE0A), A
 
 	; Update spinner
-	in FRAMENUM
-	inc A
-	out FRAMENUM
-	swap A
-	and $1F
-	or $10
-	ld (BG1+33), A
+	gosub SpinUp
+
+	; Check for A+B to cancel operation
+	in rJOYP
+	cp $DC ; A+B pressed
+	jr Z, @end
 
 @checkSIO:
 	in rSC
@@ -470,9 +510,16 @@ BackupRAM:
 	jr NZ, @nextBank
 
 	;; Send complete
+@end:
 	; Disable SRAM
 	xor A
 	ld ($0000), A
+
+	dec A
+	out rJOYP ; disable buttons
+	out rIE, IF_VBLANK
+	sleep ; wait VBlank
+	SetStatus BLANK_TILE ; clear status icon
 
 	; Change message
 	ld HL, BG1+32
@@ -480,7 +527,6 @@ BackupRAM:
 	out rIF, $00
 
 	ld A, $20
-	sleep ; wait VBlank
 -	ldi (HL), A
 	ld A, (DE)
 	inc DE
@@ -552,6 +598,9 @@ SIOCheck:
 	cp CMD_START
 	jr NZ, @exit
 
+	; Set status icon
+	SetStatus LINK_TILE
+
 	; Prepare return point
 	ldp HL, @exit
 	push HL
@@ -559,8 +608,11 @@ SIOCheck:
 	; Got start flag, wait for next byte
 	gosub SIOGet
 
-	; Check second command
-	cp CMD_RAMDUMP
+	; Check value
+	cp CMD_ROMDUMP
+	jr NZ, +
+	goto @doCopyROM
++	cp CMD_RAMDUMP
 	jr NZ, +
 	goto @doCopyRAM
 +	cp CMD_PEEK
@@ -570,17 +622,35 @@ SIOCheck:
 	jr NZ, +
 	goto @doPoke
 +	out rSB, CMD_BAD
-	ret
-
-@docmd:
-	gosub CallPtr
+	ret ; falls back to next line
 
 @exit:
 	out rSC, SC_START ; wait for new data
 	ret
 
-@doCopyRAM:
+@doCopyROM:
+	out rSB, CMD_BAD ; fail for now
 	ret
+
+@doCopyRAM:
+	ld A, CMD_START
+	out rSB
+	gosub @doCopyRAMTest
+	; should come here if that failed
+	xor A
+	out rSB
+	ret
+
+@doCopyRAMTest:
+	gosub CheckSRAM
+	out rSB ; tell SRAM amount
+
+	; Wait ACK
+-	gosub SIOGet
+	cp CMD_START
+	ret NZ ; fail and exit if invalid
+	goto BackupRAM ; do standard routine
+	;[NOTE] Must swap roles on receiving end!
 
 @doPeek:
 	gosub SIOGet ; get addr lo

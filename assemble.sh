@@ -41,3 +41,6 @@ $wlalink -S -v linkfile $dirname.gb
 
 # Clean up
 rm $dirname.o linkfile
+
+# Convert addresses in symbol file
+python3 "scripts/transform_symfile.py" ROMUTILS.sym

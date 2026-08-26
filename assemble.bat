@@ -1,6 +1,10 @@
 @echo off
 setlocal
 
+rem Vars so as not to clog PATH
+set wla_cpu=%~d0/bin/wladx/wla-gb
+set wlalink=%~d0/bin/wladx/wlalink
+
 rem Get current dir name
 for %%D in ("%CD%") do set "dirname=%%~nxD"
 
@@ -20,10 +24,6 @@ if not exist "old/" mkdir "old"
 move %dirname%.gb "old\%dirname%_%n%.gb" > NUL
 
 :run
-rem Vars so as not to clog PATH
-set wla_cpu=%~d0/bin/wladx/wla-z80
-set wlalink=%~d0/bin/wladx/wlalink
-
 rem Create object file
 echo Creating object file...
 %wla_cpu% -D _TIME_=" %TIME%" -D _DATE_=" %DATE%" -o %dirname%.o main.asm
@@ -41,4 +41,8 @@ echo Linking...
 
 rem Clean up
 del %dirname%.o linkfile
+
+rem Convert addresses in symbol file
+python "scripts/transform_symfile.py" ROMUTILS.sym
+
 endlocal

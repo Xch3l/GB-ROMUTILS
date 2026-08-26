@@ -8,8 +8,8 @@
 
 CartOptionsMenu:
 	.db 5
-	dwp CartMenuVBL
-	dwp CartMenuLoop
+	dwp NopRetn
+	dwp NopRetn
 	; labels
 	dwp strCartOptionsTitle ; title
 	dwp strViewRTC
@@ -23,12 +23,6 @@ CartOptionsMenu:
 	dwp TestRumble
 	dwp MenuNotAvailable; HashROM
 	dwp ReturnSubmenu
-
-CartMenuVBL:
-	ret
-
-CartMenuLoop:
-	ret
 
 ViewRTC:
 	ld A, (BOARDTYPE)
@@ -72,7 +66,7 @@ TestSRAM:
 	;[TODO] Take into account MBC2's 4bit SRAM
 	;[TODO] ...and MBC7's serial EEPROM
 
-	ldp DE, strSramTesting
+	ldp DE, strTesting
 	gosub InitPopup
 
 	; Unlock SRAM
@@ -153,7 +147,7 @@ RunSRAMtest:
 	jr NZ, @error
 
 	; invert pattern byte
-	cpl
+	;cpl
 	ld D, A
 
 	inc HL
@@ -175,10 +169,6 @@ RunSRAMtest:
 
 HashROM:
 	ret
-
-strSramTesting: text "Testing…"
-strSramTestError: text "Test failed"
-strSramTestSuccess: text "Test success"
 
 ;----
 ; Full screen SRAM test
@@ -220,9 +210,10 @@ SRAMTest_Init:
 	sleep ; wait vblank
 
 	; Print result message
-	bit 0, C
-	jr Z, + ; success?
+	bit 0, C ; success?
+	jr Z, @testSuccess
 
+@testFailed:
 	; Display error address (pattern gets set beforehand)
 	ld A, B
 	ld (OAM_ADDRBANK), A
@@ -230,10 +221,12 @@ SRAMTest_Init:
 	ld (OAM_ADDRHI), A
 	ld A, L
 	ld (OAM_ADDRLO), A
-	ldp HL, strSramTestError
-	jr ++
+	ldp HL, strTestError
+	ld DE, (strTestError.length/4)+BG0+$0101
+	jr @putMessage
 
-+	; Restore placeholders
+@testSuccess:
+	; Restore placeholders
 	ld A, '-'
 	ld HL, BG0+$0051
 	ldi (HL), A
@@ -244,10 +237,11 @@ SRAMTest_Init:
 	ld (HL), A
 
 	gosub ClearOAMS
-	ldp HL, strSramTestSuccess
+	ldp HL, strTestSuccess
+	ld DE, (strTestSuccess.length/4)+BG0+$0101
 
-++	; Copy string
-	ld DE, BG0+$0101
+@putMessage:
+	; Write message
 -	ldi A, (HL)
 	and A
 	jr Z, @waitExit

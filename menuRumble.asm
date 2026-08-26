@@ -16,30 +16,23 @@ RumbleMenu:
 	dwp RumReturn
 
 @vbl:
-;;	ldp HL, RumbleTimer
-;;	xor A
-;;	cp (HL)
-;;	jr NZ, @tick
-;;	xor A
-;;	jr _f
-;;
-;;@tick:
-;;	;in FRAMENUM
-;;	;and 3
-;;	;jr NZ, +
-;;	dec (HL)
-;;
-;;+	ldp HL, RumbleStrength
-;;	ldi A, (HL)
-;;	ld B, $00
-;;	inc (HL)
-;;	cp (HL)
-;;	jr NC, +
-;;	set 3, B
-;;+	ld A, B
-;;
-;;__
-;;	ld (MBC5_RAMBANK), A
+	ld HL, TEXTBUF
+
+	; Print Strength value
+	ld DE, BG0+$4F
+	gosub @printValue
+
+	; Print Duration value
+	ld DE, BG0+$6F
+	goto @printValue
+
+@printValue:
+	ld B, 3
+-	ldi A, (HL)
+	ld (DE), A
+	inc DE
+	dec B
+	jr NZ, -
 	ret
 
 @loop:
@@ -69,32 +62,38 @@ RumbleMenu:
 	inc (HL)
 
 __
-	; Display values
-	ld DE, OAMTABLE
-	ldp HL, @oams
-	ld B, 8
--	ldi A, (HL)
-	ld (DE), A
-	inc DE
-	dec B
-	jr NZ, -
-
+	; Convert values
+	ldp HL, RumbleDuration
+	ld B, $00
+	ld C, (HL)
+	gosub ToBCD
+	push BC
 	ldp HL, RumbleStrength
-	ldi A, (HL)
-	ld (OAMTABLE+2), A
+	ld B, $00
+	ld C, (HL)
+	gosub ToBCD
 
-	ldi A, (HL)
-	ld (OAMTABLE+6), A
+	ld HL, TEXTBUF
+	ld A, B
+	gosub PutHexLo
+	ld A, C
+	gosub PutHex
+	pop BC
+	ld A, B
+	gosub PutHexLo
+	ld A, C
+	gosub PutHex
+
 	ret
 
-@oams:
-	.db $20, $90, $00, $00
-	.db $28, $90, $00, $00
-
-RumbleStrength: .db 32
+RumbleStrength: .db 128
 RumbleDuration: .db 60 ; frames
 
 StartRumble:
+	; Show message
+	ldp DE, strTesting
+	gosub InitPopup
+
 	; Get values
 	ldp HL, RumbleStrength
 	ld E, (HL) ; strength
@@ -143,6 +142,9 @@ StartRumble:
 	xor A
 	ld (MBC5_RAMBANK), A
 	out rTAC ; stop timer
+
+	; Close message
+	gosub ClosePopup
 
 	; Restore interrupts
 	RestoreIFLAGS

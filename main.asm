@@ -80,6 +80,11 @@
 	out rIF, 0 ; clear pending
 .ENDM
 
+.MACRO SetStatus
+	ld A, \1
+	ld (BG0+19), A
+.ENDM
+
 .INCLUDE "head.asm"
 
 ; Special defs for `ldp` macro
@@ -119,7 +124,9 @@
 .DEFINE OPTION_COLOR     $0E
 .DEFINE SCREEN_COLOR     $08
 
-.DEFINE IDLE_TILE        $08
+.DEFINE IDLE_TILE        $06
+.DEFINE IR_TILE          $07
+.DEFINE LINK_TILE        $08
 .DEFINE FILL_TILE        $09
 .DEFINE DOTS             $0A
 .DEFINE DIVIDER_TILE     $0B
@@ -127,6 +134,7 @@
 .DEFINE GBA_ICON2        $0D
 .DEFINE BOX_ICON         $0E
 .DEFINE TICK_ICON        $0F
+.DEFINE BLANK_TILE       $20
 
 ; Misc. chars mapping
 .ASCIITABLE
@@ -617,8 +625,7 @@ LoopMenu:
 	ld L, A
 
 	sleep
-	ld A, $20
-	ld (BG0+19), A
+	SetStatus $20
 	gosub CallPtr
 	goto LoopMenu
 
